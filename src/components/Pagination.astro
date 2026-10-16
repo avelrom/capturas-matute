@@ -8,18 +8,27 @@ type Props = ComponentProps<typeof Pagination>;
 
 <style is:global>
   .pagination {
-    margin-top: 2.75rem;
-    padding-top: 1.25rem;
-    border-top: 1px solid var(--line);
-    font-size: 0.82rem;
-    color: var(--muted);
+    width: 100%;
+    max-width: 34rem;
+    margin: 4.5rem auto 0;
+    padding-top: 2rem;
+    font-size: 0.825rem;
   }
-  .pagination-link { color: var(--fg); }
-  .pagination-link:hover .pagination-label { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.25em; }
-  .pagination-arrow { display: none; }
-  .pagination-prev .pagination-label::before { content: '← '; }
-  .pagination-next .pagination-label::after { content: ' →'; }
-  @media (pointer: coarse) {
-    .pagination-link { padding: 0.4rem 0.2rem; min-height: 2.5rem; }
+  .pagination-link:not(.is-disabled) {
+    padding: 0.45rem 0.9rem;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--line);
+    color: var(--fg);
+    font-weight: 500;
+    transition: all var(--transition);
+  }
+  .pagination-link:not(.is-disabled):hover {
+    background: var(--surface);
+    border-color: var(--fg-subtle);
+  }
+  .pagination-current {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--fg-muted);
   }
 </style>

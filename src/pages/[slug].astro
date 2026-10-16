@@ -1,12 +1,12 @@
 ---
 import { render } from 'astro:content';
 import Base from '../layouts/Base.astro';
+import { getNotas } from '@fediblog/core/lib/notas';
 import ContentWarning from '@fediblog/core/components/ContentWarning.astro';
 import Engagement from '@fediblog/core/components/Engagement.astro';
 import Comments from '@fediblog/core/components/Comments.astro';
-import { getNotas } from '@fediblog/core/lib/notas';
 import { SITE } from '../config';
-import { formatDate } from '@fediblog/core/lib/format';
+import { formatDate, isStandaloneTitleParagraph } from '@fediblog/core/lib/format';
 import { slugify } from '@fediblog/core/lib/slug';
 
 export async function getStaticPaths() {
@@ -16,357 +16,342 @@ export async function getStaticPaths() {
 
 const { nota } = Astro.props;
 const { Content } = await render(nota);
+const base = import.meta.env.BASE_URL;
+const images = nota.data.images;
+const dateFormatted = formatDate(nota.data.date, 'dd/mm/yyyy');
+
+const postComments = nota.data.comments ?? [];
+const commentCount = nota.data.commentCount ?? 0;
+
+function splitLeadTitleFromHtml(html: string): { title: string | null; bodyHtml: string } {
+  const brMatch = html.match(/^\s*<p>([\s\S]*?)(?:<br\s*\/?>\s*){2,}([\s\S]*?)<\/p>/i);
+  if (brMatch) {
+    const rawFirst = brMatch[1].replace(/<[^>]+>/g, '').trim();
+    if (isStandaloneTitleParagraph(rawFirst)) {
+      const rest = `<p>${brMatch[2].trim()}</p>` + html.slice(brMatch[0].length);
+      return { title: rawFirst, bodyHtml: rest };
+    }
+  }
+  const pMatch = html.match(/^\s*<p>([\s\S]*?)<\/p>/i);
+  if (pMatch) {
+    const rawFirst = pMatch[1].replace(/<[^>]+>/g, '').trim();
+    const rest = html.slice(pMatch[0].length).trim();
+    if (rest && isStandaloneTitleParagraph(rawFirst)) {
+      return { title: rawFirst, bodyHtml: rest };
+    }
+  }
+  return { title: null, bodyHtml: html };
+}
+
+const rawHtml = nota.rendered?.html ?? '';
+const { title: leadTitle, bodyHtml } = splitLeadTitleFromHtml(rawHtml);
 ---
 
-<Base title={nota.data.title} description={nota.data.excerpt.slice(0, 200)} isEntry isPost>
+<Base title={leadTitle || nota.data.title} description={nota.data.excerpt.slice(0, 200)} isEntry isPost>
   <article class="entry-page">
-    <header class="entry-header">
-      <h1>{nota.data.title}</h1>
-      <p class="meta">
-        {SITE.post.showComments ? (
-          <time datetime={nota.data.date.toISOString()} title={formatDate(nota.data.date, 'dd/mm/yyyy')}>
-            <span class="sr-only">Publicado el {formatDate(nota.data.date, 'dd/mm/yyyy')}</span>
-            <span aria-hidden="true">{formatDate(nota.data.date, 'dd/mm')}</span>
-          </time>
-        ) : (
-          <a
-            class="date-link"
-            href={nota.data.sourceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={`Post original (${formatDate(nota.data.date, 'dd/mm/yyyy')})`}
-            aria-label={`Ver publicación original de ${formatDate(nota.data.date, 'dd/mm/yyyy')}`}
-          >
-            <time datetime={nota.data.date.toISOString()}>
-              <span class="sr-only">Publicado el {formatDate(nota.data.date, 'dd/mm/yyyy')}</span>
-              <span aria-hidden="true">{formatDate(nota.data.date, 'dd/mm')}</span>
-            </time>
-          </a>
-        )}
-      </p>
-    </header>
+    <nav class="entry-nav">
+      <a href={base} class="back-link">
+        <span class="arrow" aria-hidden="true">←</span>
+        <span>Volver</span>
+      </a>
+      <span class="nav-sep" aria-hidden="true">·</span>
+      <a class="entry-source" href={nota.data.sourceUrl} target="_blank" rel="noopener noreferrer" title="Ver en el fediverso">
+        <time datetime={nota.data.date.toISOString()}>{dateFormatted}</time>
+      </a>
+    </nav>
 
-    {nota.data.cw ? (
-      <ContentWarning cw={nota.data.cw}><div class="body"><Content /></div></ContentWarning>
-    ) : (
-      <div class="body"><Content /></div>
-    )}
-
-    {nota.data.tags.length > 0 && (
-      <nav class="tags" aria-label="Etiquetas de la entrada">
-        {nota.data.tags.map((tag: string) => (
-          <a href={`${import.meta.env.BASE_URL}etiquetas/${slugify(tag)}/`} aria-label={`Etiqueta: #${tag}`}>#{tag}</a>
+    {images.length > 0 && (
+      <div class:list={['shots', images.length > 1 && 'is-grid', nota.data.sensitive && 'is-sensitive']}>
+        {images.map((img: { src: string; alt: string; width?: number; height?: number }) => (
+          <div class="shot-wrapper">
+            <img
+              class="shot"
+              src={`${base}${img.src}`}
+              alt={img.alt}
+              loading="lazy"
+              data-lightbox="gallery"
+              data-lightbox-src={`${base}${img.src}`}
+              data-lightbox-alt={img.alt}
+              style={img.width && img.height ? `aspect-ratio: ${img.width} / ${img.height};` : undefined}
+            />
+          </div>
         ))}
-      </nav>
+        {nota.data.sensitive && (
+          <button type="button" class="reveal-btn" data-reveal>Mostrar contenido sensible</button>
+        )}
+      </div>
     )}
 
-    <Engagement likes={nota.data.likes} shares={nota.data.shares} sourceUrl={nota.data.sourceUrl} previewHooks data-preview-field="post.showMetrics" data-preview-label="Mostrar «me gusta» y compartidas" data-preview-group="Entrada" />
+    <div class="entry-body-wrap">
+      {leadTitle ? (
+        <h1 class="entry-title">{leadTitle}</h1>
+      ) : (
+        <h1 class="sr-only">{nota.data.title}</h1>
+      )}
+
+      {nota.data.cw ? (
+        <ContentWarning cw={nota.data.cw}><div class="body"><Content /></div></ContentWarning>
+      ) : (
+        <div class="body" set:html={bodyHtml} />
+      )}
+
+      {nota.data.tags.length > 0 && (
+        <div class="tags">
+          {nota.data.tags.map((tag: string) => (
+            <a href={`${base}etiquetas/${slugify(tag)}/`}>#{tag}</a>
+          ))}
+        </div>
+      )}
+
+      {SITE.post.showMetrics && (
+        <Engagement likes={nota.data.likes} shares={nota.data.shares} sourceUrl={nota.data.sourceUrl} previewHooks data-preview-field="post.showMetrics" data-preview-label="Mostrar «me gusta» y compartidas" data-preview-group="Entrada" />
+      )}
+    </div>
 
     {SITE.post.showComments && (
-      <div data-preview-field="post.showComments" data-preview-label="Comentarios al final de la entrada" data-preview-group="Entrada">
-        <Comments comments={nota.data.comments} count={nota.data.commentCount} sourceUrl={nota.data.sourceUrl} avatars={SITE.post.commentAvatars} previewHooks />
+      <div
+        class="comments-wrap"
+        data-preview-field="post.showComments"
+        data-preview-label="Mostrar comentarios"
+        data-preview-group="Entrada"
+      >
+        <Comments comments={postComments} count={commentCount} sourceUrl={nota.data.sourceUrl} avatars={SITE.post.commentAvatars} previewHooks={true} />
       </div>
     )}
   </article>
 </Base>
 
+<script>
+  document.querySelectorAll<HTMLButtonElement>('.shots [data-reveal]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      btn.closest('.shots')?.classList.remove('is-sensitive');
+    });
+  });
+</script>
+
 <style>
-  .entry-page { padding-bottom: 2rem; }
-
-  .entry-header {
-    position: relative;
-    margin-bottom: 1.5rem;
-  }
-
-  .meta {
-    position: absolute;
-    top: calc(var(--font-size-entry-h1, 1.35rem) * 1.3 / 2);
-    transform: translateY(-50%);
-    right: calc(100% + 1.25rem);
-    white-space: nowrap;
-    font-family: var(--mono);
-    font-size: var(--font-size-meta, 0.74rem);
-    line-height: 1;
-    letter-spacing: 0.01em;
-    color: var(--muted);
-    text-align: right;
-    margin: 0;
-    transition: font-size 0.2s ease;
-  }
-
-  h1 {
-    font-family: var(--text-font);
-    font-size: var(--font-size-entry-h1, 1.35rem);
-    font-weight: 600;
-    line-height: 1.3;
-    letter-spacing: -0.015em;
-    text-wrap: balance;
-    margin: 0;
-    transition: font-size 0.2s ease;
-  }
-  .date-link {
-    color: var(--muted);
-    text-decoration: none;
-  }
-  .date-link:hover {
-    color: var(--fg);
-    text-decoration: underline;
-  }
-
-  .body {
-    font-family: var(--text-font);
-    font-size: var(--font-size-prose, 0.88rem);
-    line-height: var(--line-height-base, 1.75);
-    overflow-wrap: break-word;
-    transition: font-size 0.2s ease;
-  }
-
-
-  .body :global(p) {
-    margin: 0 0 1.45rem;
-    text-wrap: pretty;
-  }
-  .body :global(h2),
-  .body :global(h3),
-  .body :global(h4) {
-    line-height: 1.3;
-    font-weight: 600;
-    color: var(--fg);
-    letter-spacing: -0.01em;
-  }
-  .body :global(h2) {
-    font-size: 1.15rem;
-    margin: 1.85rem 0 0.5rem;
-  }
-  .body :global(h3) {
-    font-size: 1rem;
-    margin: 1.4rem 0 0.4rem;
-  }
-  .body :global(ul),
-  .body :global(ol) {
-    margin: 0 0 1.25rem;
-    padding-left: 1.35rem;
-  }
-  .body :global(li) { margin-bottom: 0.35rem; }
-  .body :global(hr) {
-    border: 0;
-    text-align: center;
-    margin: 2rem 0;
-  }
-  .body :global(hr)::after {
-    content: '* * *';
-    color: var(--muted);
-    letter-spacing: 0.5em;
-    font-family: var(--mono);
-    font-size: 0.78rem;
-  }
-  .body :global(details.nota-cw) {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    padding: 0.65rem 0.85rem;
-    margin: 0 0 1.25rem;
-  }
-  .body :global(details.nota-cw summary) {
-    cursor: pointer;
-    font-family: var(--mono);
-    font-size: 0.78rem;
-    color: var(--muted);
-    list-style: none;
+  .entry-page {
+    width: 100%;
     display: flex;
-    align-items: baseline;
-    gap: 0.45rem;
+    flex-direction: column;
+    align-items: center;
   }
-  .body :global(details.nota-cw summary::-webkit-details-marker) {
+
+  .entry-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-bottom: 2.25rem;
+    font-size: 0.825rem;
+    font-family: var(--mono);
+  }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--fg-muted);
+    transition: color var(--transition);
+  }
+  .back-link .arrow {
+    display: inline-block;
+    transition: transform var(--transition);
+  }
+  .back-link:hover {
+    color: var(--fg);
+  }
+  .back-link:hover .arrow {
+    transform: translateX(-3px);
+  }
+
+  .nav-sep {
+    color: var(--fg-subtle);
+  }
+
+  .entry-source {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--fg-muted);
+    transition: color var(--transition);
+  }
+  .entry-source:hover {
+    color: var(--fg);
+  }
+
+  .shots {
+    width: 100%;
+    max-width: 44rem;
+    margin: 0 auto 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    position: relative;
+    border: none;
+    border-radius: 0;
+  }
+
+  .shots.is-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  .shot-wrapper {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .shot {
+    width: 100%;
+    height: auto;
+    min-width: 0;
+    max-height: 85vh;
+    object-fit: contain;
+    display: block;
+    border: none;
+    border-radius: 0;
+    cursor: zoom-in;
+    transition: opacity 0.2s ease;
+  }
+  .shot:hover {
+    opacity: 0.95;
+  }
+
+  .shots.is-sensitive .shot {
+    filter: blur(36px);
+    user-select: none;
+  }
+
+  .reveal-btn {
     display: none;
   }
-  .body :global(details.nota-cw summary::before) {
-    content: '▸';
-    display: inline-block;
-    color: var(--accent-2);
-    transition: transform 0.15s ease;
+
+  .shots.is-sensitive .reveal-btn {
+    display: block;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    appearance: none;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: #ffffff;
+    font-family: var(--sans);
+    font-size: 0.825rem;
+    font-weight: 500;
+    padding: 0.65rem 1.25rem;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    transition: background 0.2s ease, transform 0.15s ease;
   }
-  .body :global(details.nota-cw[open] summary::before) {
-    transform: rotate(90deg);
+  .reveal-btn:hover {
+    background: rgba(0, 0, 0, 0.85);
+    transform: translate(-50%, -50%) scale(1.02);
   }
-  .body :global(details.nota-cw summary:focus-visible) {
-    outline: 2px solid var(--accent-1);
-    outline-offset: 2px;
+
+  .entry-body-wrap {
+    width: 100%;
+    max-width: 34rem;
+    margin: 0 auto;
   }
-  .body :global(details.nota-cw[open] summary) {
-    margin-bottom: 0.75rem;
+
+  .entry-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: -0.015em;
     color: var(--fg);
+    margin: 0 0 1rem;
+    text-align: left;
   }
-  .body :global(details.nota-cw p:last-child) {
+
+
+  /* Estilo coherente con la portada: minimalista y limpio, en tamaño cómodo (0.85rem) */
+  .body {
+    font-size: 0.85rem;
+    line-height: 1.62;
+    color: var(--fg-secondary);
+  }
+  .body :global(p) {
+    margin: 0 0 1.25rem;
+  }
+  .body :global(p:last-child) {
     margin-bottom: 0;
   }
   .body :global(a) {
-    color: inherit;
-    text-decoration-line: underline;
-    text-decoration-thickness: 1px;
+    color: var(--fg);
+    text-decoration: underline;
+    text-underline-offset: 2px;
     text-decoration-color: var(--line-strong);
-    text-underline-offset: 0.22em;
-    transition: text-decoration-color 0.12s ease;
+    transition: text-decoration-color var(--transition);
   }
   .body :global(a:hover) {
     text-decoration-color: var(--fg);
   }
-  .body :global(figure) {
-    margin: 1.75rem 0;
-  }
-  .body :global(img) {
-    max-width: 100%;
-    height: auto;
-    display: block;
-    border-radius: 4px;
-  }
-  .body :global(figcaption) {
-    font-family: var(--mono);
-    font-size: 0.74rem;
-    line-height: 1.5;
-    color: var(--muted);
-    margin-top: 0.5rem;
-  }
   .body :global(blockquote) {
     margin: 1.25rem 0;
-    padding: 0.2rem 0 0.2rem 1rem;
+    padding-left: 1rem;
     border-left: 2px solid var(--line-strong);
+    color: var(--fg-muted);
     font-style: italic;
-    color: var(--fg);
-    font-size: 0.88rem;
-    line-height: 1.7;
   }
-  .body :global(blockquote p:last-child) { margin-bottom: 0; }
   .body :global(pre) {
     background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 4px;
+    border: 1px solid var(--line-subtle);
+    border-radius: var(--radius-sm);
     padding: 0.85rem 1rem;
-    margin: 1.25rem 0;
     overflow-x: auto;
-    font-size: 0.78rem;
-    line-height: 1.6;
-    hyphens: none;
+    font-size: 0.75rem;
+    font-family: var(--mono);
+    margin: 1.25rem 0;
   }
   .body :global(code) {
     font-family: var(--mono);
-    font-size: 0.86em;
-    hyphens: none;
-  }
-  .body :global(:not(pre) > code) {
-    background: var(--surface);
-    border: 1px solid var(--line-strong);
-    padding: 0.12em 0.35em;
-    border-radius: 3px;
-  }
-  .body :global(.footnotes) {
-    margin-top: 2.5rem;
-    padding-top: 1.25rem;
-    border-top: 1px solid var(--line);
-    font-size: 0.8rem;
-  }
-  .body :global(.footnotes ol) {
-    padding-left: 1.25rem;
-    margin: 0;
-  }
-  .body :global(.footnotes li) {
-    margin-bottom: 0.45rem;
-    line-height: 1.55;
-  }
-  .body :global(.footnotes li p) {
-    margin: 0;
-    display: inline;
-  }
-  .body :global([data-footnote-ref]) {
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 0.76em;
-    color: var(--fg);
-  }
-  .body :global([data-footnote-ref]:hover) {
-    text-decoration: underline;
-  }
-  .body :global([data-footnote-backref]) {
-    text-decoration: none;
-    font-size: 0.85em;
-    margin-left: 0.35em;
-    color: var(--muted);
-  }
-  .body :global([data-footnote-backref]:hover) {
-    color: var(--fg);
+    font-size: 0.9em;
   }
 
   .tags {
-    margin: 1.75rem 0 0;
+    margin-top: 2rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--line-subtle);
     display: flex;
-    gap: 0.35rem 0.85rem;
+    justify-content: center;
+    gap: 0.45rem;
     flex-wrap: wrap;
-    font-family: var(--mono);
-    font-size: 0.75rem;
   }
   .tags a {
-    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.6rem;
+    border-radius: var(--radius-full);
+    background: var(--surface);
+    color: var(--fg-secondary);
+    font-size: 0.72rem;
+    font-family: var(--mono);
     text-decoration: none;
-    transition: color 0.12s ease;
+    transition: all var(--transition);
   }
   .tags a:hover {
+    background: var(--surface-hover);
     color: var(--fg);
-    text-decoration: underline;
   }
 
-  /* Tablas adaptables sin desbordamiento */
-  .body :global(table) {
-    display: block;
+
+  .comments-wrap {
     width: 100%;
-    max-width: 100%;
-    overflow-x: auto;
-    border-collapse: collapse;
-    margin: 1.5rem 0;
-    font-size: 0.9em;
-    -webkit-overflow-scrolling: touch;
-  }
-  .body :global(th),
-  .body :global(td) {
-    padding: 0.45rem 0.75rem;
-    border: 1px solid var(--line);
-    text-align: left;
-  }
-  .body :global(th) {
-    background: var(--surface);
-    font-weight: 600;
-  }
-
-  @media (pointer: coarse) {
-    .tags a {
-      padding: 0.35rem 0.25rem;
-      min-height: 2.25rem;
-      display: inline-flex;
-      align-items: center;
-    }
-  }
-
-  @media (max-width: 44rem) {
-    .entry-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      margin-bottom: 1.25rem;
-    }
-    .meta {
-      position: static;
-      top: auto;
-      left: auto;
-      right: auto;
-      transform: none;
-      margin: 0;
-      flex-shrink: 0;
-    }
-    h1 {
-      font-size: 1.22rem;
-      margin: 0;
-      flex: 1;
-      min-width: 0;
-    }
+    max-width: 34rem;
+    margin: 0 auto;
   }
 </style>

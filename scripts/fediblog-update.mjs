@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Trae mejoras del tema (Fediblog/Texto) sin tocar lo tuyo.
+ * Trae mejoras del tema (Fediblog/Foto) sin tocar lo tuyo.
  *
  * Cómo funciona, en corto: `fediblog.manifest.json` lista qué archivos son
  * "del tema" (layouts, componentes, lib, páginas de ruta…). Todo lo que no

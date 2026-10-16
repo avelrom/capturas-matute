@@ -2,4 +2,8 @@
 import { createActor } from '@fediblog/core/lib/actor';
 import { SITE } from '../config';
 
-export const { actor, formatCount } = createActor({ handle: SITE.handle, profile: SITE.profile, locale: SITE.site.locale });
+export const { actor, formatCount } = createActor({
+  handle: SITE.handle,
+  profile: SITE.profile,
+  locale: SITE.site.locale,
+});

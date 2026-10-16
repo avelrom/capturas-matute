@@ -1,11 +1,11 @@
 /**
- * Ajustes de Matute.
+ * Ajustes de Weiss.
  *
- * Matute es el tema más sencillo de fediblog: convierte los mensajes públicos
- * de una cuenta del fediverso en un blog de solo texto, sin apenas ajustes.
- * Inspirado en Ana María Matute. Si quieres más control (comentarios,
- * destacados, dos cuentas, vistas de galería…), el resto de temas de fediblog
- * lo ofrecen — este es justo lo contrario a propósito.
+ * Weiss es el tema más sencillo de fediblog centrado en imagen: convierte las
+ * fotos publicadas por una cuenta del fediverso en una cuadrícula visual, sin
+ * apenas ajustes. Inspirado en Sabine Weiss. Si quieres más control (varias vistas
+ * de galería, cuenta companion, visor a pantalla completa configurable…), el
+ * resto de temas de fediblog lo ofrecen — este es justo lo contrario a propósito.
  */
 export const SITE = {
   /**
@@ -20,15 +20,27 @@ export const SITE = {
    *   Mastodon/Pixelfed: '@usuario@instancia'.
    *   Bluesky: 'usuario.bsky.social' o tu dominio propio (con o sin @).
    */
-  handle: '@fediblogtest@mastodon.social',
+  handle: '@fediblogtest@pixelfed.social',
 
   // ─── Ajustes generales del sitio ──────────────────────────────────────────
   site: {
     /** Nombre del blog: cabecera, título de las pestañas y feeds. */
-    title: 'Matute',
+    title: 'Weiss',
 
     /** Idioma y formato de fechas (ej: 'es-ES', 'en-US'). */
     locale: 'es-ES',
+
+    /** Descripción corta: metadatos y feeds. Vacío = se usa la biografía de la cuenta. */
+    description: '',
+
+    /**
+     * Modo oscuro:
+     *   'toggle' → botón en la cabecera (claro/oscuro), recordado en el navegador.
+     *   'auto'   → sigue al sistema, sin botón.
+     *   'light'  → siempre claro.
+     *   'dark'   → siempre oscuro.
+     */
+    darkMode: 'toggle' as 'toggle' | 'auto' | 'light' | 'dark',
 
     /**
      * Colores propios (formato #rrggbb). `null` = el del tema.
@@ -41,11 +53,11 @@ export const SITE = {
 
     /**
      * Letra del blog:
-     *   'sans'  → Inter (sans-serif moderna y nítida, por defecto).
-     *   'serif' → texto en serifa, de lectura clásica.
-     *   'mono'  → todo en monoespaciada, más austero.
+     *   'sans'  → sans-serif nítida (por defecto).
+     *   'serif' → serifa, de lectura clásica.
+     *   'mono'  → monoespaciada, más austera.
      */
-    font: 'sans' as 'serif' | 'sans' | 'mono',
+    font: 'sans' as 'sans' | 'serif' | 'mono',
 
     /**
      * Tamaño del texto en cada elemento, a elegir entre xs, s, m, l y xl
@@ -64,13 +76,11 @@ export const SITE = {
     },
 
     /**
-     * Modo oscuro:
-     *   'toggle' → botón en la cabecera (claro/oscuro), recordado en el navegador.
-     *   'auto'   → sigue al sistema, sin botón.
-     *   'light'  → siempre claro.
-     *   'dark'   → siempre oscuro.
+     * Estilo del menú de navegación superior:
+     *   'icons' → todos los elementos son iconos homogéneos (por defecto).
+     *   'text'  → todos los elementos son texto homogéneo.
      */
-    darkMode: 'toggle' as 'toggle' | 'auto' | 'light' | 'dark',
+    menuStyle: 'icons' as 'icons' | 'text',
 
     /**
      * Enlaces del menú: el texto que se muestra y su icono (de Lucide, o de
@@ -78,40 +88,18 @@ export const SITE = {
      */
     menu: {
       about: {
-        label: 'about',
+        label: 'Acerca de',
         icon: 'user',
       },
       archive: {
-        label: 'archivo',
+        label: 'Archivo',
         icon: 'archive',
       },
       rss: {
-        label: 'rss',
+        label: 'RSS',
         icon: 'rss',
       },
     },
-
-    /**
-     * Tamaños de texto (S / M / L) que ofrece el selector. Uno solo = el blog
-     * siempre se ve a ese tamaño y no aparece el selector.
-     */
-    sizes: ['sm', 'md', 'lg'] as ('sm' | 'md' | 'lg')[],
-    /** Tamaño con el que se abre el blog (debe estar en `sizes`; si no, M o el primero). */
-    defaultSize: 'md' as 'sm' | 'md' | 'lg',
-    /**
-     * Dónde sustituir los enlaces de texto por iconos de Lucide:
-     *   'both'    → en móvil y en escritorio.
-     *   'mobile'  → solo en móvil (en escritorio se muestra el texto).
-     *   'desktop' → solo en escritorio (en móvil se muestra el texto).
-     *   'none'    → desactivado (siempre texto, aunque haya iconos configurados).
-     */
-    navIconsMode: 'both' as 'both' | 'mobile' | 'desktop' | 'none',
-
-    /**
-     * En móvil (pantallas estrechas), ocultar los iconos de redes sociales del menú
-     * para no saturar la barra superior. Se consultan en /about/.
-     */
-    hideSocialOnMobile: true,
 
     /**
      * Panel lateral de vista previa: marca o desmarca opciones y ve el efecto
@@ -128,21 +116,40 @@ export const SITE = {
      * mensajes en vez de todos. Se busca en cualquier parte del mensaje y se
      * quita del texto. `null` = se publican todos los mensajes propios.
      */
-    marker: '✍🏻' as string | null,
+    marker: null as string | null,
   },
 
-  /** Inicio. */
-  home: {
-    /** Entradas por página. */
-    postsPerPage: 30,
+  // ─── Galería de portada ───────────────────────────────────────────────────
+  gallery: {
+    /**
+     * Vistas disponibles, a tu elección. Una sola = el blog siempre se ve así
+     * y no aparece el selector.
+     *   'grid' → cuadrícula de imágenes.
+     *   'rows' → en fila: imagen centrada con el texto al lado.
+     */
+    views: ['grid', 'rows'] as ('grid' | 'rows')[],
+
+    /** Vista con la que se abre el blog (debe estar en `views`; si no, se usa la primera). */
+    defaultView: 'grid' as 'grid' | 'rows',
+
+    /**
+     * Tamaños (S / M / L) que ofrece el selector. Uno solo = el blog siempre se
+     * ve a ese tamaño y no aparece el selector.
+     */
+    sizes: ['sm', 'md', 'lg'] as ('sm' | 'md' | 'lg')[],
+    /** Tamaño con el que se abre el blog (debe estar en `sizes`; si no, M o el primero). */
+    defaultSize: 'md' as 'sm' | 'md' | 'lg',
+
+    /** Entradas por página en el inicio (múltiplo de 3 y 2 para cuadrículas completas). */
+    postsPerPage: 12,
   },
 
   /** Entradas. */
   post: {
-    /** Mostrar las respuestas de otras cuentas (comentarios) al final de cada entrada. */
+    /** Comentarios de otras cuentas al final de cada entrada. */
     showComments: true,
 
-    /** Mostrar «me gusta» y compartidas al final de cada entrada (a 0 no se muestran). */
+    /** Mostrar «me gusta» y compartidas (a 0 no se muestran). */
     showMetrics: true,
 
     /** Máximo de comentarios que se muestran por entrada (el resto, en la red original). */
@@ -164,10 +171,7 @@ export const SITE = {
     bio: null as string | null,
     /** Texto libre adicional, bajo la biografía (párrafos separados por una línea en blanco). Vacío = nada: no se añade ningún texto automático. */
     extraText: null as string | null,
-    /**
-     * Mostrar la imagen de cabecera de la red social en /about/.
-     * Si la cuenta del fediverso o Bluesky tiene cabecera configurada, se muestra sobre el perfil.
-     */
+    /** Mostrar la imagen de cabecera de la red social en /about/. */
     showBanner: true,
     /** Foto de perfil junto al nombre. */
     showAvatar: true,
@@ -181,21 +185,28 @@ export const SITE = {
 
   /** Archivo. */
   archive: {
-    /** Mostrar enlace a la página de archivo en el menú. */
+    /** Mostrar enlace a la vista de archivo en la cabecera. */
     show: true,
   },
 
   /**
-   * Cuentas de redes sociales enlazadas en el menú y en /about/.
-   * Puedes usar la URL completa o el usuario/handle de cada aplicación
-   * (ej: 'bluesky', 'instagram', 'pixelfed', '@mastodon@mastodon.social').
-   * Deja en '' las que no uses.
+   * Genera la página /editor/ y su enlace en la cabecera: un editor Markdown
+   * para redactar y publicar en Pixelfed/Mastodon.
+   */
+  editor: {
+    show: false,
+  },
+
+  /**
+   * Enlaces a tus redes: aparecen en la cabecera y en /about/. Añade tantos
+   * como quieras, con la etiqueta que prefieras (mastodon, instagram,
+   * substack, tu web…). Vacío = no se muestra ninguno.
    */
   social: {
+    pixelfed: 'https://pixelfed.social/pixelfed',
     mastodon: 'https://mastodon.social/@mastodon',
     bluesky: 'https://bsky.app/profile/bsky.app',
     instagram: 'https://www.instagram.com/instagram/',
-    pixelfed: 'https://pixelfed.social/pixelfed',
     substack: '',
   },
 } as const;
