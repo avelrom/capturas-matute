@@ -1,0 +1,464 @@
+---
+/**
+ * Visor a pantalla completa (Lightbox) minimalista y elegante para fotografías.
+ *
+ * Características:
+ *  - Fondo traslúcido oscuro con desenfoque de cristal (backdrop-filter: blur).
+ *  - Navegación entre fotos con flechas (pantalla y teclado ← / →) y soporte táctil (swipe).
+ *  - Contador de posición (ej: 1 / 4) en tipografía mono.
+ *  - Cierre con Escape, clic en fondo, botón ✕ o swipe.
+ *  - Diálogo accesible (role="dialog", aria-modal="true", trampa de foco y restauración de foco).
+ */
+---
+
+<div
+  id="fotoLightbox"
+  class="foto-lightbox"
+  role="dialog"
+  aria-modal="true"
+  aria-hidden="true"
+  aria-label="Visor de fotografía a pantalla completa"
+>
+  <div class="foto-lightbox-backdrop" data-lb-close></div>
+
+  <div class="foto-lightbox-header">
+    <div id="fotoLightboxCounter" class="foto-lightbox-counter" aria-live="polite"></div>
+    <button
+      type="button"
+      id="fotoLightboxClose"
+      class="foto-lightbox-close"
+      data-lb-close
+      aria-label="Cerrar visor (Esc)"
+    >
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </button>
+  </div>
+
+  <button
+    type="button"
+    id="fotoLightboxPrev"
+    class="foto-lightbox-nav prev"
+    aria-label="Fotografía anterior (←)"
+  >
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="15 18 9 12 15 6"></polyline>
+    </svg>
+  </button>
+
+  <div class="foto-lightbox-stage" data-lb-close>
+    <img
+      id="fotoLightboxImg"
+      class="foto-lightbox-img"
+      src=""
+      alt=""
+      draggable="false"
+    />
+  </div>
+
+  <button
+    type="button"
+    id="fotoLightboxNext"
+    class="foto-lightbox-nav next"
+    aria-label="Fotografía siguiente (→)"
+  >
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </button>
+</div>
+
+<script>
+  interface GalleryItem {
+    src: string;
+    alt: string;
+    element: HTMLElement;
+  }
+
+  function initLightbox() {
+    const rootMaybe = document.getElementById('fotoLightbox');
+    const imgMaybe = document.getElementById('fotoLightboxImg') as HTMLImageElement | null;
+    const counterEl = document.getElementById('fotoLightboxCounter');
+    const closeBtn = document.getElementById('fotoLightboxClose');
+    const prevBtn = document.getElementById('fotoLightboxPrev');
+    const nextBtn = document.getElementById('fotoLightboxNext');
+
+    if (!rootMaybe || !imgMaybe) return;
+    const root: HTMLElement = rootMaybe;
+    const imgEl: HTMLImageElement = imgMaybe;
+
+    let items: GalleryItem[] = [];
+    let currentIndex = 0;
+    let lastActiveElement: HTMLElement | null = null;
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    function collectGalleryItems(clickedEl: HTMLElement): { items: GalleryItem[]; index: number } {
+      // Buscar elementos con [data-lightbox] o dentro de .shots
+      const container = clickedEl.closest('.shots') || document;
+      const nodes = Array.from(container.querySelectorAll<HTMLElement>('[data-lightbox], .shots img.shot'));
+
+      const gathered: GalleryItem[] = [];
+      let foundIndex = 0;
+
+      nodes.forEach((el) => {
+        const src = el.getAttribute('data-lightbox-src') || (el as HTMLImageElement).currentSrc || (el as HTMLImageElement).src || '';
+        const alt = el.getAttribute('data-lightbox-alt') || (el as HTMLImageElement).alt || '';
+        if (src) {
+          gathered.push({ src, alt, element: el });
+          if (el === clickedEl || el.contains(clickedEl)) {
+            foundIndex = gathered.length - 1;
+          }
+        }
+      });
+
+      return { items: gathered, index: foundIndex };
+    }
+
+    function renderItem(animate = true) {
+      if (!items[currentIndex]) return;
+      const item = items[currentIndex];
+
+      if (animate) {
+        imgEl.style.opacity = '0.3';
+        imgEl.style.transform = 'scale(0.98)';
+      }
+
+      const tempImg = new Image();
+      tempImg.onload = () => {
+        imgEl.src = item.src;
+        imgEl.alt = item.alt;
+        requestAnimationFrame(() => {
+          imgEl.style.opacity = '1';
+          imgEl.style.transform = 'scale(1)';
+        });
+      };
+      tempImg.src = item.src;
+
+      // Actualizar contador
+      if (counterEl) {
+        if (items.length > 1) {
+          counterEl.textContent = `${currentIndex + 1} / ${items.length}`;
+          counterEl.style.display = 'block';
+        } else {
+          counterEl.textContent = '';
+          counterEl.style.display = 'none';
+        }
+      }
+
+      // Actualizar flechas
+      if (prevBtn && nextBtn) {
+        const showNav = items.length > 1;
+        prevBtn.style.display = showNav ? 'flex' : 'none';
+        nextBtn.style.display = showNav ? 'flex' : 'none';
+      }
+    }
+
+    function openLightbox(clickedEl: HTMLElement) {
+      const result = collectGalleryItems(clickedEl);
+      if (result.items.length === 0) return;
+
+      items = result.items;
+      currentIndex = result.index;
+      lastActiveElement = document.activeElement as HTMLElement | null;
+
+      root.classList.add('is-open');
+      root.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+
+      renderItem(false);
+      closeBtn?.focus();
+    }
+
+    function closeLightbox() {
+      root.classList.remove('is-open');
+      root.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+
+      setTimeout(() => {
+        if (!root.classList.contains('is-open') && imgEl) {
+          imgEl.src = '';
+          imgEl.alt = '';
+        }
+      }, 250);
+
+      if (lastActiveElement) {
+        lastActiveElement.focus();
+        lastActiveElement = null;
+      }
+    }
+
+    function showPrev() {
+      if (items.length <= 1) return;
+      currentIndex = (currentIndex - 1 + items.length) % items.length;
+      renderItem(true);
+    }
+
+    function showNext() {
+      if (items.length <= 1) return;
+      currentIndex = (currentIndex + 1) % items.length;
+      renderItem(true);
+    }
+
+    // Delegación de clics para abrir el lightbox
+    document.addEventListener('click', (e) => {
+      const target = (e.target as HTMLElement).closest<HTMLElement>('[data-lightbox], .shots img.shot');
+      if (target) {
+        // Si está dentro de un contenedor marcado como sensible sin revelar, no abrir todavía
+        const sensitiveWrap = target.closest('.is-sensitive');
+        if (sensitiveWrap) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        openLightbox(target);
+      }
+    });
+
+    // Clic en botones o fondo
+    root.querySelectorAll('[data-lb-close]').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        if (e.target === el) {
+          e.preventDefault();
+          closeLightbox();
+        }
+      });
+    });
+
+    prevBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showPrev();
+    });
+
+    nextBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showNext();
+    });
+
+    // Clic en la imagen para pasar a la siguiente (si hay más de una)
+    imgEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (items.length > 1) {
+        showNext();
+      }
+    });
+
+    // Teclado
+    document.addEventListener('keydown', (e) => {
+      if (!root.classList.contains('is-open')) return;
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeLightbox();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        showPrev();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        showNext();
+      } else if (e.key === 'Tab') {
+        // Trampa de foco accesible
+        const focusables = Array.from(root.querySelectorAll<HTMLElement>('button:not([style*="display: none"])'));
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    });
+
+    // Soporte táctil / swipe en móviles
+    root.addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    root.addEventListener('touchend', (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      const diff = touchEndX - touchStartX;
+      if (Math.abs(diff) > 45) {
+        if (diff < 0) showNext();
+        else showPrev();
+      }
+    }, { passive: true });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initLightbox);
+  } else {
+    initLightbox();
+  }
+</script>
+
+<style>
+  .foto-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.22s ease;
+  }
+
+  .foto-lightbox.is-open {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .foto-lightbox-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(8, 8, 10, 0.94);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    cursor: zoom-out;
+  }
+
+  .foto-lightbox-header {
+    position: fixed;
+    top: 1.5rem;
+    left: 2rem;
+    right: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 100001;
+    pointer-events: none;
+  }
+
+  .foto-lightbox-counter {
+    font-family: var(--mono);
+    font-size: 0.825rem;
+    color: rgba(255, 255, 255, 0.6);
+    letter-spacing: 0.05em;
+    user-select: none;
+  }
+
+  .foto-lightbox-close {
+    pointer-events: auto;
+    margin-left: auto;
+    appearance: none;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    padding: 0.5rem;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+
+  .foto-lightbox-close:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.12);
+    transform: scale(1.08);
+  }
+
+  .foto-lightbox-close:focus-visible {
+    outline: 2px solid #ffffff;
+    outline-offset: 2px;
+  }
+
+  .foto-lightbox-stage {
+    position: relative;
+    z-index: 100000;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4.5rem 5rem;
+    box-sizing: border-box;
+    cursor: zoom-out;
+  }
+
+  .foto-lightbox-img {
+    max-width: 90vw;
+    max-height: 86vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border: none;
+    border-radius: 0;
+    box-shadow: 0 16px 54px rgba(0, 0, 0, 0.55);
+    user-select: none;
+    cursor: pointer;
+    transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .foto-lightbox-nav {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 100001;
+    appearance: none;
+    width: 46px;
+    height: 46px;
+    border-radius: var(--radius-full);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition);
+    padding: 0;
+  }
+
+  .foto-lightbox-nav.prev {
+    left: 1.5rem;
+  }
+
+  .foto-lightbox-nav.next {
+    right: 1.5rem;
+  }
+
+  .foto-lightbox-nav:hover {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.35);
+    color: #ffffff;
+    transform: translateY(-50%) scale(1.06);
+  }
+
+  .foto-lightbox-nav:focus-visible {
+    outline: 2px solid #ffffff;
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 48rem) {
+    .foto-lightbox-header {
+      top: 1rem;
+      left: 1.25rem;
+      right: 1.25rem;
+    }
+    .foto-lightbox-stage {
+      padding: 3.5rem 1.25rem;
+    }
+    .foto-lightbox-nav {
+      width: 38px;
+      height: 38px;
+    }
+    .foto-lightbox-nav.prev {
+      left: 0.75rem;
+    }
+    .foto-lightbox-nav.next {
+      right: 0.75rem;
+    }
+  }
+</style>

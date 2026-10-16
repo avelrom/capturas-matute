@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "astro dev --port 4328",
+    "dev": "astro dev --port 4327",
     "build": "astro build",
-    "preview": "astro preview --port 4328",
+    "preview": "astro preview --port 4327",
     "check": "astro check",
     "fediblog:update": "node scripts/fediblog-update.mjs",
     "fediblog:update:dry-run": "node scripts/fediblog-update.mjs --dry-run"

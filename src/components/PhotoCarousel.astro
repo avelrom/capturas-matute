@@ -1,0 +1,349 @@
+---
+/**
+ * Carrusel de fotos con proporciones reales y sin bordes.
+ * Reutilizado en portada y en la vista de detalle.
+ */
+interface ImageT {
+  src: string;
+  alt: string;
+  width?: number;
+  height?: number;
+}
+
+interface Props {
+  images: ImageT[];
+  title: string;
+  base: string;
+  /** Si se da, todo el carrusel es un enlace (uso en el inicio). */
+  href?: string;
+  sensitive?: boolean;
+  showDots?: boolean;
+  lockAspect?: boolean;
+}
+
+const {
+  images,
+  title,
+  base,
+  href,
+  sensitive = false,
+  showDots = true,
+  lockAspect = !!href,
+} = Astro.props;
+const first = images[0] ?? null;
+const Wrapper = href ? 'a' : 'div';
+const initialAspect = first?.width && first?.height ? `${first.width} / ${first.height}` : undefined;
+---
+
+<div class="photo-carousel">
+  <Wrapper class="media-link" href={href} aria-label={href ? title : undefined}>
+    {first ? (
+      <div
+        class:list={['carousel', sensitive && 'is-sensitive']}
+        data-carousel
+        data-lock-aspect={lockAspect ? 'true' : undefined}
+        style={initialAspect ? `aspect-ratio: ${initialAspect};` : undefined}
+      >
+        {images.map((img, i) => (
+          <img
+            class:list={['slide', i === 0 && 'is-active']}
+            src={`${base}${img.src}`}
+            alt={img.alt || title}
+            loading={i === 0 ? 'eager' : 'lazy'}
+            decoding="async"
+            data-w={img.width}
+            data-h={img.height}
+            aria-hidden={i === 0 ? undefined : 'true'}
+          />
+        ))}
+        {sensitive && (
+          <button type="button" class="reveal-btn" data-reveal>Mostrar contenido sensible</button>
+        )}
+      </div>
+    ) : (
+      <span class="entry-fallback" aria-hidden="true">Aa</span>
+    )}
+  </Wrapper>
+  {showDots && images.length > 1 && (
+    <div class="dots" role="tablist" aria-label={`Fotos de ${title || 'esta entrada'}`}>
+      {images.map((_, i) => (
+        <button
+          type="button"
+          class:list={['dot', i === 0 && 'is-active']}
+          data-index={i}
+          role="tab"
+          aria-selected={i === 0 ? 'true' : 'false'}
+          aria-label={`Foto ${i + 1} de ${images.length}`}
+          tabindex={i === 0 ? 0 : -1}
+        />
+      ))}
+    </div>
+  )}
+</div>
+
+<script>
+  import { wheelSteps } from '@fediblog/core/lib/wheel-steps';
+
+  document.querySelectorAll<HTMLElement>('.photo-carousel').forEach((root) => {
+    const carousel = root.querySelector<HTMLElement>('.carousel');
+    const slides = root.querySelectorAll<HTMLImageElement>('.slide');
+    const dots = root.querySelectorAll<HTMLButtonElement>('.dot');
+    const total = slides.length;
+    let currentIndex = 0;
+
+    function goTo(i: number) {
+      if (i < 0 || i >= total) return;
+      currentIndex = i;
+      const target = slides[currentIndex];
+      if (carousel && !carousel.dataset.lockAspect && target?.dataset.w && target?.dataset.h) {
+        carousel.style.aspectRatio = `${target.dataset.w} / ${target.dataset.h}`;
+      }
+      slides.forEach((s, si) => {
+        const active = si === currentIndex;
+        s.classList.toggle('is-active', active);
+        if (active) {
+          s.removeAttribute('aria-hidden');
+        } else {
+          s.setAttribute('aria-hidden', 'true');
+        }
+      });
+      dots.forEach((d, di) => {
+        const active = di === currentIndex;
+        d.classList.toggle('is-active', active);
+        d.setAttribute('aria-selected', active ? 'true' : 'false');
+        d.setAttribute('tabindex', active ? '0' : '-1');
+      });
+    }
+
+    dots.forEach((dot) => {
+      dot.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const i = Number(dot.dataset.index);
+        if (!isNaN(i)) goTo(i);
+      });
+
+      dot.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          const next = (currentIndex + 1) % total;
+          goTo(next);
+          dots[next]?.focus();
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const prev = (currentIndex - 1 + total) % total;
+          goTo(prev);
+          dots[prev]?.focus();
+        } else if (e.key === 'Home') {
+          e.preventDefault();
+          goTo(0);
+          dots[0]?.focus();
+        } else if (e.key === 'End') {
+          e.preventDefault();
+          goTo(total - 1);
+          dots[total - 1]?.focus();
+        }
+      });
+    });
+
+    if (carousel && total > 1) {
+      // Rueda y trackpad pasan de foto sin mezclarse con el scroll de la página.
+      wheelSteps(root, {
+        canMove: (dir) => currentIndex + dir >= 0 && currentIndex + dir < total,
+        step: (dir) => goTo(currentIndex + dir),
+      });
+
+      // Soporte táctil (swipe) para dispositivos móviles
+      let touchStartX = 0;
+      let touchStartY = 0;
+      let isSwiping = false;
+
+      root.addEventListener(
+        'touchstart',
+        (e) => {
+          if (e.touches.length === 1) {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            isSwiping = true;
+          }
+        },
+        { passive: true }
+      );
+
+      root.addEventListener(
+        'touchend',
+        (e) => {
+          if (!isSwiping || e.changedTouches.length === 0) return;
+          isSwiping = false;
+          const deltaX = e.changedTouches[0].clientX - touchStartX;
+          const deltaY = e.changedTouches[0].clientY - touchStartY;
+          if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 35) {
+            if (deltaX < 0 && currentIndex < total - 1) {
+              goTo(currentIndex + 1);
+            } else if (deltaX > 0 && currentIndex > 0) {
+              goTo(currentIndex - 1);
+            }
+          }
+        },
+        { passive: true }
+      );
+    }
+
+    root.querySelectorAll<HTMLButtonElement>('[data-reveal]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        carousel?.classList.remove('is-sensitive');
+      });
+    });
+  });
+</script>
+
+<style>
+  .photo-carousel {
+    overscroll-behavior-x: contain;
+    touch-action: pan-y;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .media-link {
+    display: block;
+    width: 100%;
+    margin: 0 auto;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    outline: none;
+    position: relative;
+    text-decoration: none;
+  }
+
+  .carousel {
+    position: relative;
+    width: 100%;
+    margin: 0 auto;
+    overflow: hidden;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    display: block;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+
+  .slide.is-active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .carousel:not([style*="aspect-ratio"]) .slide.is-active {
+    position: relative;
+    height: auto;
+    max-height: 85vh;
+  }
+
+  .carousel.is-sensitive .slide {
+    filter: blur(36px);
+    user-select: none;
+  }
+
+  .reveal-btn {
+    display: none;
+  }
+
+  .carousel.is-sensitive .reveal-btn {
+    display: block;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    appearance: none;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    background: rgba(0, 0, 0, 0.7);
+    color: #ffffff;
+    font-family: var(--sans);
+    font-size: 0.8rem;
+    font-weight: 500;
+    padding: 0.6rem 1.2rem;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .reveal-btn:hover {
+    background: rgba(0, 0, 0, 0.9);
+  }
+
+  .entry-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 16rem;
+    color: var(--fg-subtle);
+    font-size: 1.5rem;
+    font-weight: 500;
+    font-family: var(--mono);
+    border: none;
+  }
+
+  .dots {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.5rem;
+    margin-bottom: 0.15rem;
+  }
+
+  .dot {
+    appearance: none;
+    position: relative;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    border: none;
+    padding: 0;
+    background: var(--line-strong);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  /* Área de clic cómoda sin agrandar visualmente el punto */
+  .dot::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+  }
+
+  .dot.is-active {
+    background: var(--fg);
+    transform: scale(1.2);
+  }
+
+  .dot:hover:not(.is-active) {
+    background: var(--fg-muted);
+  }
+
+  .dot:focus-visible {
+    outline: 2px solid var(--fg);
+    outline-offset: 2px;
+  }
+</style>

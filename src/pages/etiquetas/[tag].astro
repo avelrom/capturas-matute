@@ -1,7 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { getTags, getNotasByTagSlug } from '@fediblog/core/lib/notas';
-import EntryList from '../../components/EntryList.astro';
+import { formatDate } from '@fediblog/core/lib/format';
 
 export async function getStaticPaths() {
   const tags = await getTags();
@@ -14,20 +14,121 @@ export async function getStaticPaths() {
 }
 
 const { tag, notas } = Astro.props;
+const base = import.meta.env.BASE_URL;
 ---
 
 <Base title={`#${tag.name}`} description={`Entradas etiquetadas #${tag.name}.`} isEntry>
-  <h1>#{tag.name}</h1>
-  <EntryList notas={notas} />
+  <div class="tag-page">
+    <header class="tag-header">
+      <a href={base} class="back-link">
+        <span class="arrow" aria-hidden="true">←</span>
+        <span>Volver</span>
+      </a>
+      <h1 class="tag-title">#{tag.name}</h1>
+      <p class="tag-subtitle">{notas.length} {notas.length === 1 ? 'publicación' : 'publicaciones'}</p>
+    </header>
+
+    <ul class="entries">
+      {notas.map((nota) => {
+        const dateFormatted = formatDate(nota.data.date, 'dd/mm/yyyy');
+        return (
+          <li class="entry-item">
+            <a class="entry-link" href={`${base}${nota.id}/`}>
+              <span class="entry-title">{nota.data.title}</span>
+              <time class="entry-date" datetime={nota.data.date.toISOString()}>{dateFormatted}</time>
+            </a>
+          </li>
+        );
+      })}
+    </ul>
+  </div>
 </Base>
 
 <style>
-  h1 {
-    font-family: var(--text-font);
-    font-size: 1.25rem;
+  .tag-page {
+    width: 100%;
+    max-width: 36rem;
+    margin: 0 auto;
+  }
+
+  .tag-header {
+    text-align: center;
+    margin-bottom: 2.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--fg-muted);
+    margin-bottom: 1.25rem;
+    transition: color var(--transition);
+  }
+  .back-link .arrow {
+    display: inline-block;
+    transition: transform var(--transition);
+  }
+  .back-link:hover {
+    color: var(--fg);
+  }
+  .back-link:hover .arrow {
+    transform: translateX(-3px);
+  }
+
+  .tag-title {
+    font-size: 1.5rem;
     font-weight: 600;
-    line-height: 1.25;
-    letter-spacing: -0.015em;
-    margin: 0 0 1.25rem;
+    letter-spacing: -0.03em;
+    margin: 0;
+    color: var(--fg);
+  }
+
+  .tag-subtitle {
+    font-size: 0.85rem;
+    color: var(--fg-muted);
+    font-family: var(--mono);
+    margin-top: 0.35rem;
+  }
+
+  .entries {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .entry-item {
+    border-bottom: 1px solid var(--line-subtle);
+  }
+
+  .entry-link {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 1.15rem 0;
+    text-decoration: none;
+    transition: opacity var(--transition);
+  }
+  .entry-link:hover {
+    opacity: 0.7;
+  }
+
+  .entry-title {
+    font-weight: 500;
+    color: var(--fg);
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+
+  .entry-date {
+    font-size: 0.8rem;
+    font-family: var(--mono);
+    color: var(--fg-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 </style>

@@ -7,8 +7,9 @@ import { SITE } from './config';
 // cuenta del fediverso indicada en src/config.ts (SITE.handle).
 const notas = defineCollection({
   loader: siteLoader(SITE, {
-    firstSentenceAsTitle: true,
-    dicebearBackground: ['f5f5f4', 'e7e5e4', 'd6d3d1'],
+    // Las imágenes van aparte (arriba de cada entrada y en la cuadrícula), no en el cuerpo.
+    inlineFigures: false,
+    dicebearBackground: ['e4e4e4', 'cfcfcf', '9a9a9a'],
   }),
   schema: notaSchema,
 });

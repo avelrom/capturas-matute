@@ -1,121 +1,180 @@
 ---
 import { isOff } from '@fediblog/core/lib/flags';
-import Base from '../layouts/Base.astro';
-import EntryList from '../components/EntryList.astro';
-import { getNotas, getTags } from '@fediblog/core/lib/notas';
 import { SITE } from '../config';
+/**
+ * Vista de archivo: cuadrícula compacta de solo fotos, para hojear rápido.
+ * Sin textos, respetando el formato y proporción original de cada imagen, sin bordes.
+ */
+import Base from '../layouts/Base.astro';
+import { getNotas } from '@fediblog/core/lib/notas';
 
 if (isOff(SITE.archive?.show)) return Astro.redirect(import.meta.env.BASE_URL);
 
 const notas = await getNotas();
-const tags = await getTags();
-const base = import.meta.env.BASE_URL;
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+
+interface Shot {
+  src: string;
+  href: string;
+  title: string;
+  width?: number;
+  height?: number;
+}
+
+const shots: Shot[] = notas.flatMap((nota) => {
+  const href = `${base}${nota.id}/`;
+  if (nota.data.images.length === 0) {
+    return [{
+      src: '',
+      href,
+      title: nota.data.title,
+    }];
+  }
+  return nota.data.images.map((img: { src: string; width?: number; height?: number }) => ({
+    src: img.src,
+    href,
+    title: nota.data.title,
+    width: img.width,
+    height: img.height,
+  }));
+});
 ---
 
-<Base title="Archivo" description={`Archivo de entradas de ${SITE.site.title}.`} isEntry>
-  <header class="archive-header">
-    <h1 class="archive-title">Archivo</h1>
-    <p class="archive-count">{notas.length} {notas.length === 1 ? 'entrada' : 'entradas'} en total.</p>
-  </header>
+<Base title="Archivo" wide isEntry>
+  <h1 class="sr-only">Archivo</h1>
 
-  {tags.length > 0 && (
-    <nav class="archive-tags" aria-label="Etiquetas del archivo">
-      <ul class="tags-list">
-        {tags.map((tag) => (
-          <li>
-            <a href={`${base}etiquetas/${tag.slug}/`} class="tag-link">
-              <span class="tag-hash" aria-hidden="true">#</span>
-              <span>{tag.name}</span>
-              <span class="tag-count" aria-label={`(${tag.count} entradas)`}>{tag.count}</span>
-            </a>
-          </li>
-        ))}
-      </ul>
-    </nav>
-  )}
+  <ul class="archive">
+    {shots.map((shot) => (
+      <li class="tile">
+        <a class="tile-link" href={shot.href} title={shot.title} aria-label={shot.title}>
+          {shot.src ? (
+            <img
+              class="tile-img"
+              src={`${base}${shot.src}`}
+              alt={shot.title}
+              loading="lazy"
+              width={shot.width}
+              height={shot.height}
+              style={shot.width && shot.height ? `aspect-ratio: ${shot.width} / ${shot.height};` : undefined}
+            />
+          ) : (
+            <span class="tile-fallback" aria-hidden="true">Aa</span>
+          )}
+        </a>
+      </li>
+    ))}
+  </ul>
 
-  <EntryList notas={notas} showAllYears alwaysShowDates />
-
-  {notas.length === 0 && <p class="empty">Todavía no hay publicaciones.</p>}
+  {shots.length === 0 && <p class="empty">Todavía no hay publicaciones.</p>}
 </Base>
 
 <style>
-  .archive-header {
-    margin-bottom: 2rem;
-  }
-
-  .archive-title {
-    font-family: var(--text-font);
-    font-size: var(--font-size-entry-h1, 1.35rem);
-    font-weight: 600;
-    line-height: 1.25;
-    letter-spacing: -0.015em;
-    margin: 0 0 0.35rem;
-    color: var(--fg);
-    transition: font-size 0.2s ease;
-  }
-
-  .archive-count {
-    font-family: var(--mono);
-    font-size: 0.76rem;
-    color: var(--muted);
-    margin: 0;
-  }
-
-  .archive-tags {
-    margin: 0 0 2.25rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .tags-list {
+  /* Cuadrícula compacta de solo fotos: 5 a 6 columnas en desktop, fotos más pequeñas */
+  .archive {
     list-style: none;
-    margin: 0;
+    margin: 0 auto;
     padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.45rem;
+    column-count: 6;
+    column-gap: 0.85rem;
+    width: 100%;
   }
 
-  .tag-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-family: var(--mono);
-    font-size: 0.74rem;
-    color: var(--muted);
-    background: var(--surface);
-    padding: 0.22rem 0.6rem;
-    border-radius: 4px;
-    text-decoration: none;
-    transition: background-color 0.12s ease, color 0.12s ease;
-  }
-
-  .tag-link:hover {
-    background: var(--surface-hover);
-    color: var(--fg);
-    text-decoration: none;
-  }
-
-  .tag-hash {
-    opacity: 0.45;
-  }
-
-  .tag-count {
-    font-size: 0.68rem;
-    opacity: 0.6;
-    margin-left: 0.1rem;
-  }
-
-  @media (pointer: coarse) {
-    .tag-link {
-      padding: 0.4rem 0.75rem;
-      min-height: 2.25rem;
+  @media (max-width: 60rem) {
+    .archive {
+      column-count: 5;
+      column-gap: 0.75rem;
     }
   }
 
+  @media (max-width: 48rem) {
+    .archive {
+      column-count: 4;
+      column-gap: 0.65rem;
+    }
+  }
+
+  @media (max-width: 36rem) {
+    .archive {
+      column-count: 3;
+      column-gap: 0.5rem;
+    }
+  }
+
+  @media (max-width: 26rem) {
+    .archive {
+      column-count: 2;
+      column-gap: 0.4rem;
+    }
+  }
+
+  .tile {
+    break-inside: avoid;
+    margin-bottom: 0.85rem;
+    display: block;
+  }
+
+  @media (max-width: 60rem) {
+    .tile {
+      margin-bottom: 0.75rem;
+    }
+  }
+
+  @media (max-width: 48rem) {
+    .tile {
+      margin-bottom: 0.65rem;
+    }
+  }
+
+  @media (max-width: 36rem) {
+    .tile {
+      margin-bottom: 0.5rem;
+    }
+  }
+
+  .tile-link {
+    display: block;
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    overflow: hidden;
+    position: relative;
+    outline: none;
+  }
+
+  .tile-img {
+    display: block;
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+    border: none;
+    border-radius: 0;
+    transform: scale(1);
+    transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .tile-link:hover .tile-img {
+    opacity: 0.82;
+    transform: scale(1.025);
+  }
+
+  .tile-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    color: var(--fg-subtle);
+    font-size: 1.1rem;
+    font-weight: 500;
+    font-family: var(--mono);
+    background: var(--surface);
+  }
+
   .empty {
-    color: var(--muted);
-    padding: 2rem 0;
+    color: var(--fg-muted);
+    text-align: center;
+    padding: 4rem 0;
+    font-size: 0.95rem;
   }
 </style>
